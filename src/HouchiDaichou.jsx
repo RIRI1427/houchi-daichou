@@ -103,16 +103,32 @@ function HouchiDaichou() {
     showToast('リストに戻したよ。');
   };
 
-  const handleDragStart = (index) => setDragIndex(index);
-  const handleDragOver = (e) => e.preventDefault();
-  const handleDrop = (index) => {
-    if (dragIndex === null || dragIndex === index) return;
-    const newTasks = [...tasks];
-    const [moved] = newTasks.splice(dragIndex, 1);
-    newTasks.splice(index, 0, moved);
-    setTasks(newTasks);
-    setDragIndex(null);
+  // ≡ハンドルだけをドラッグ起点にするPointer Events実装。
+  // ネイティブHTML5 D&D(draggable属性)はiOSのタッチでは並べ替えが成立せず、
+  // カード全体のタッチジェスチャーを奪ってスクロールも止めてしまうため使わない。
+  const handlePointerDown = (e, index) => {
+    e.preventDefault();
+    setDragIndex(index);
+    e.currentTarget.setPointerCapture(e.pointerId);
   };
+
+  const handlePointerMove = (e) => {
+    if (dragIndex === null) return;
+    const target = document.elementFromPoint(e.clientX, e.clientY);
+    const card = target && target.closest('[data-task-index]');
+    if (!card) return;
+    const overIndex = Number(card.dataset.taskIndex);
+    if (overIndex === dragIndex) return;
+    setTasks((prev) => {
+      const newTasks = [...prev];
+      const [moved] = newTasks.splice(dragIndex, 1);
+      newTasks.splice(overIndex, 0, moved);
+      return newTasks;
+    });
+    setDragIndex(overIndex);
+  };
+
+  const handlePointerEnd = () => setDragIndex(null);
 
   const catImg = (visual, baseSize) => (
     <img
@@ -186,14 +202,12 @@ function HouchiDaichou() {
               return (
                 <div
                   key={t.id}
-                  draggable
-                  onDragStart={() => handleDragStart(i)}
-                  onDragOver={handleDragOver}
-                  onDrop={() => handleDrop(i)}
+                  data-task-index={i}
                   style={{
                     background: '#fff', borderRadius: 20, padding: '14px 12px 14px 16px',
                     display: 'flex', alignItems: 'center', gap: 12,
                     boxShadow: '0 3px 10px -4px rgba(150,120,110,0.18)', border: '1px solid #F0E4DC',
+                    opacity: dragIndex === i ? 0.6 : 1,
                   }}
                 >
                   <div
@@ -214,7 +228,13 @@ function HouchiDaichou() {
                       {days}日
                     </div>
                   </div>
-                  <div style={{ color: '#C9BAB2', fontSize: 20, padding: '10px 8px', cursor: 'grab' }}>≡</div>
+                  <div
+                    onPointerDown={(e) => handlePointerDown(e, i)}
+                    onPointerMove={handlePointerMove}
+                    onPointerUp={handlePointerEnd}
+                    onPointerCancel={handlePointerEnd}
+                    style={{ color: '#C9BAB2', fontSize: 20, padding: '10px 8px', cursor: 'grab', touchAction: 'none' }}
+                  >≡</div>
                 </div>
               );
             })
