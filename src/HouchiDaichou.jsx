@@ -53,10 +53,19 @@ function HouchiDaichou() {
     return Math.max(0, Math.floor((now - created) / (1000 * 60 * 60 * 24)));
   };
 
-  const stageOf = (days) => {
-    if (days >= 30) return 3;
-    if (days >= 7) return 2;
-    return 1;
+  // 5日ごとにレベルが上がり、サイズと色の濃さが段階的に変化する。
+  // レベル0-2:クリーム(stage1) / 3-5:黄色(stage2) / 6以降:紫(stage3)
+  // レベル8(40日)で成長は打ち止め。
+  const MAX_POODLE_LEVEL = 8;
+
+  const poodleVisual = (days) => {
+    const level = Math.min(Math.floor(days / 5), MAX_POODLE_LEVEL);
+    const stage = level < 3 ? 1 : level < 6 ? 2 : 3;
+    const posInStage = level % 3; // 0,1,2: 同じ画像の中での進み具合
+    const sizeRatio = 1 + (level / MAX_POODLE_LEVEL) * 0.45; // 徐々に大きく
+    const saturate = 1 + posInStage * 0.18; // 徐々に色が濃く
+    const brightness = 1 - posInStage * 0.04; // 徐々にやや暗く
+    return { stage, sizeRatio, filter: `saturate(${saturate}) brightness(${brightness})` };
   };
 
   const addTask = () => {
@@ -75,18 +84,6 @@ function HouchiDaichou() {
 
   const openDetail = (task) => {
     setActiveTask(task);
-  };
-
-  const adjustDays = (delta) => {
-    if (!activeTask) return;
-    const d = new Date(activeTask.createdAt);
-    d.setDate(d.getDate() - delta);
-    const now = new Date();
-    if (d > now) d.setTime(now.getTime());
-    const newCreatedAt = d.toISOString();
-    const updated = { ...activeTask, createdAt: newCreatedAt };
-    setActiveTask(updated);
-    setTasks(tasks.map(t => (t.id === activeTask.id ? updated : t)));
   };
 
   const moveToHistory = (status) => {
@@ -117,11 +114,11 @@ function HouchiDaichou() {
     setDragIndex(null);
   };
 
-  const catImg = (stage, size) => (
+  const catImg = (visual, baseSize) => (
     <img
-      src={POODLE_IMAGES['stage' + stage]}
+      src={POODLE_IMAGES['stage' + visual.stage]}
       alt="プードル"
-      style={{ width: size, height: 'auto', display: 'block' }}
+      style={{ width: Math.round(baseSize * visual.sizeRatio), height: 'auto', display: 'block', filter: visual.filter }}
     />
   );
 
@@ -184,8 +181,8 @@ function HouchiDaichou() {
           ) : (
             tasks.map((t, i) => {
               const days = daysSince(t.createdAt);
-              const stage = stageOf(days);
-              const dayColor = stage === 1 ? '#D8A468' : stage === 2 ? '#C98A0E' : '#B0479E';
+              const visual = poodleVisual(days);
+              const dayColor = visual.stage === 1 ? '#D8A468' : visual.stage === 2 ? '#C98A0E' : '#B0479E';
               return (
                 <div
                   key={t.id}
@@ -203,7 +200,7 @@ function HouchiDaichou() {
                     onClick={() => openDetail(t)}
                     style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}
                   >
-                    {catImg(stage, stage === 1 ? 42 : stage === 2 ? 50 : 58)}
+                    {catImg(visual, 42)}
                   </div>
                   <div
                     onClick={() => openDetail(t)}
@@ -282,27 +279,15 @@ function HouchiDaichou() {
             }}>
               {(() => {
                 const days = daysSince(activeTask.createdAt);
-                const stage = stageOf(days);
-                const imgSize = stage === 1 ? 110 : stage === 2 ? 130 : 150;
+                const visual = poodleVisual(days);
                 return (
                   <>
                     <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 6 }}>
-                      {catImg(stage, imgSize)}
+                      {catImg(visual, 110)}
                     </div>
                     <p style={{ textAlign: 'center', fontSize: 18, fontWeight: 800, margin: '8px 0 2px' }}>{activeTask.name}</p>
                     <p style={{ textAlign: 'center', fontSize: 13, color: '#A89A94', margin: '0 0 4px' }}>放置 {days}日</p>
-                    <p style={{ textAlign: 'center', fontSize: 13, color: '#A89A94', margin: '0 0 18px' }}>{msgs[stage]}</p>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, marginBottom: 18 }}>
-                      <button onClick={() => adjustDays(-1)} style={{
-                        width: 36, height: 36, borderRadius: '50%', border: '1px solid #F0E4DC',
-                        background: '#fff', fontSize: 16, fontWeight: 700, cursor: 'pointer',
-                      }}>−1日</button>
-                      <span style={{ fontSize: 13, color: '#A89A94', minWidth: 64, textAlign: 'center' }}>日数を調整</span>
-                      <button onClick={() => adjustDays(1)} style={{
-                        width: 36, height: 36, borderRadius: '50%', border: '1px solid #F0E4DC',
-                        background: '#fff', fontSize: 16, fontWeight: 700, cursor: 'pointer',
-                      }}>+1日</button>
-                    </div>
+                    <p style={{ textAlign: 'center', fontSize: 13, color: '#A89A94', margin: '0 0 18px' }}>{msgs[visual.stage]}</p>
                   </>
                 );
               })()}
