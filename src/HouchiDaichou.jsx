@@ -86,18 +86,6 @@ function HouchiDaichou() {
     setActiveTask(task);
   };
 
-  const adjustDays = (delta) => {
-    if (!activeTask) return;
-    const d = new Date(activeTask.createdAt);
-    d.setDate(d.getDate() - delta);
-    const now = new Date();
-    if (d > now) d.setTime(now.getTime());
-    const newCreatedAt = d.toISOString();
-    const updated = { ...activeTask, createdAt: newCreatedAt };
-    setActiveTask(updated);
-    setTasks(tasks.map(t => (t.id === activeTask.id ? updated : t)));
-  };
-
   const moveToHistory = (status) => {
     if (!activeTask) return;
     setTasks(tasks.filter(t => t.id !== activeTask.id));
@@ -300,17 +288,6 @@ function HouchiDaichou() {
                     <p style={{ textAlign: 'center', fontSize: 18, fontWeight: 800, margin: '8px 0 2px' }}>{activeTask.name}</p>
                     <p style={{ textAlign: 'center', fontSize: 13, color: '#A89A94', margin: '0 0 4px' }}>放置 {days}日</p>
                     <p style={{ textAlign: 'center', fontSize: 13, color: '#A89A94', margin: '0 0 18px' }}>{msgs[visual.stage]}</p>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, marginBottom: 18 }}>
-                      <button onClick={() => adjustDays(-1)} style={{
-                        width: 36, height: 36, borderRadius: '50%', border: '1px solid #F0E4DC',
-                        background: '#fff', fontSize: 16, fontWeight: 700, cursor: 'pointer',
-                      }}>−1日</button>
-                      <span style={{ fontSize: 13, color: '#A89A94', minWidth: 64, textAlign: 'center' }}>日数を調整</span>
-                      <button onClick={() => adjustDays(1)} style={{
-                        width: 36, height: 36, borderRadius: '50%', border: '1px solid #F0E4DC',
-                        background: '#fff', fontSize: 16, fontWeight: 700, cursor: 'pointer',
-                      }}>+1日</button>
-                    </div>
                   </>
                 );
               })()}
