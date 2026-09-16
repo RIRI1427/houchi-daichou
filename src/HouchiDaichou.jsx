@@ -103,6 +103,14 @@ function HouchiDaichou() {
     showToast('リストに戻したよ。');
   };
 
+  const deleteFromHistory = (id) => {
+    const h = history.find(x => x.id === id);
+    if (!h) return;
+    if (!window.confirm(`「${h.name}」を完全に削除します。この操作は元に戻せません。よろしいですか？`)) return;
+    setHistory(history.filter(x => x.id !== id));
+    showToast('完全に削除したよ。');
+  };
+
   // ≡ハンドルだけをドラッグ起点にするPointer Events実装。
   // ネイティブHTML5 D&D(draggable属性)はiOSのタッチでは並べ替えが成立せず、
   // カード全体のタッチジェスチャーを奪ってスクロールも止めてしまうため使わない。
@@ -224,8 +232,14 @@ function HouchiDaichou() {
                   style={{
                     background: '#fff', borderRadius: 20, padding: '14px 12px 14px 16px',
                     display: 'flex', alignItems: 'center', gap: 12,
-                    boxShadow: '0 3px 10px -4px rgba(150,120,110,0.18)', border: '1px solid #F0E4DC',
-                    opacity: dragIndex === i ? 0.6 : 1,
+                    border: '1px solid #F0E4DC',
+                    transition: dragIndex === i ? 'none' : 'transform 0.15s, box-shadow 0.15s',
+                    transform: dragIndex === i ? 'scale(1.04)' : 'scale(1)',
+                    boxShadow: dragIndex === i
+                      ? '0 14px 28px -8px rgba(150,120,110,0.45)'
+                      : '0 3px 10px -4px rgba(150,120,110,0.18)',
+                    position: 'relative',
+                    zIndex: dragIndex === i ? 1 : 0,
                   }}
                 >
                   <div
@@ -397,13 +411,22 @@ function HouchiDaichou() {
                           color: h.status === 'done' ? '#5FCB8E' : '#FF6B6B',
                         }}>{h.status === 'done' ? '✓ やった' : '🗑 もうやらない'}</div>
                       </div>
-                      <button
-                        onClick={() => restoreFromHistory(h.id)}
-                        style={{
-                          background: '#FF8FA3', color: '#fff', border: 'none', borderRadius: 100,
-                          padding: '8px 14px', fontSize: 12, fontWeight: 800, cursor: 'pointer',
-                        }}
-                      >戻す</button>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <button
+                          onClick={() => restoreFromHistory(h.id)}
+                          style={{
+                            background: '#FF8FA3', color: '#fff', border: 'none', borderRadius: 100,
+                            padding: '8px 14px', fontSize: 12, fontWeight: 800, cursor: 'pointer',
+                          }}
+                        >戻す</button>
+                        <button
+                          onClick={() => deleteFromHistory(h.id)}
+                          style={{
+                            background: '#fff', color: '#B0479E', border: '1px solid #EBD9E3', borderRadius: 100,
+                            padding: '8px 14px', fontSize: 12, fontWeight: 800, cursor: 'pointer',
+                          }}
+                        >完全に削除</button>
+                      </div>
                     </div>
                   ))
                 )}
