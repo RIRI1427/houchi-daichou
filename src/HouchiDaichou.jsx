@@ -8,15 +8,39 @@ const POODLE_IMAGES = {
 };
 
 
+const TASKS_KEY = 'houchi-daichou:tasks';
+const HISTORY_KEY = 'houchi-daichou:history';
+
+function loadFromStorage(key) {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
 function HouchiDaichou() {
-  const [tasks, setTasks] = useState([]);
-  const [history, setHistory] = useState([]);
+  const [tasks, setTasks] = useState(() => loadFromStorage(TASKS_KEY));
+  const [history, setHistory] = useState(() => loadFromStorage(HISTORY_KEY));
   const [showAddModal, setShowAddModal] = useState(false);
   const [taskInput, setTaskInput] = useState('');
   const [activeTask, setActiveTask] = useState(null);
   const [showTrashModal, setShowTrashModal] = useState(false);
   const [toast, setToast] = useState('');
   const [dragIndex, setDragIndex] = useState(null);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(TASKS_KEY, JSON.stringify(tasks));
+    } catch {}
+  }, [tasks]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+    } catch {}
+  }, [history]);
 
   const showToast = (msg) => {
     setToast(msg);
