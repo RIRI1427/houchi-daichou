@@ -248,7 +248,10 @@ function HouchiDaichou() {
                   </div>
                   <div
                     onPointerDown={(e) => handlePointerDown(e, i)}
-                    style={{ color: '#C9BAB2', fontSize: 20, padding: '10px 8px', cursor: 'grab', touchAction: 'none' }}
+                    style={{
+                      color: '#C9BAB2', fontSize: 20, padding: '10px 8px', cursor: 'grab', touchAction: 'none',
+                      userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none',
+                    }}
                   >≡</div>
                 </div>
               );
