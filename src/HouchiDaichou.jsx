@@ -139,11 +139,11 @@ function HouchiDaichou() {
       <div style={{ width: '100%', maxWidth: 480, minHeight: '100vh', background: '#FFF8F0', display: 'flex', flexDirection: 'column' }}>
 
         {/* header */}
-        <div style={{ padding: '26px 20px 14px', textAlign: 'center', position: 'relative' }}>
+        <div style={{ padding: 'calc(26px + env(safe-area-inset-top)) 20px 14px', textAlign: 'center', position: 'relative' }}>
           <button
             onClick={() => setShowTrashModal(true)}
             style={{
-              position: 'absolute', top: 22, right: 20,
+              position: 'absolute', top: 'calc(22px + env(safe-area-inset-top))', right: 20,
               background: '#fff', border: '1px solid #F0E4DC', borderRadius: 100,
               width: 40, height: 40, fontSize: 17, cursor: 'pointer', color: '#A89A94',
             }}
