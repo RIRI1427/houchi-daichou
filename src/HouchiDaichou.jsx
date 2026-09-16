@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 // プードル画像(放置日数で3段階)
 const POODLE_IMAGES = {
@@ -106,29 +106,47 @@ function HouchiDaichou() {
   // ≡ハンドルだけをドラッグ起点にするPointer Events実装。
   // ネイティブHTML5 D&D(draggable属性)はiOSのタッチでは並べ替えが成立せず、
   // カード全体のタッチジェスチャーを奪ってスクロールも止めてしまうため使わない。
+  // setPointerCaptureは小さい要素だとiOSで安定して効かないことがあるため、
+  // ドラッグ中はwindow全体でpointermove/upを監視する方式にしている。
+  const dragIndexRef = useRef(null);
+  useEffect(() => {
+    dragIndexRef.current = dragIndex;
+  }, [dragIndex]);
+
+  useEffect(() => {
+    const handleMove = (e) => {
+      const current = dragIndexRef.current;
+      if (current === null) return;
+      const target = document.elementFromPoint(e.clientX, e.clientY);
+      const card = target && target.closest('[data-task-index]');
+      if (!card) return;
+      const overIndex = Number(card.dataset.taskIndex);
+      if (overIndex === current) return;
+      setTasks((prev) => {
+        const newTasks = [...prev];
+        const [moved] = newTasks.splice(current, 1);
+        newTasks.splice(overIndex, 0, moved);
+        return newTasks;
+      });
+      setDragIndex(overIndex);
+    };
+    const handleEnd = () => {
+      if (dragIndexRef.current !== null) setDragIndex(null);
+    };
+    window.addEventListener('pointermove', handleMove);
+    window.addEventListener('pointerup', handleEnd);
+    window.addEventListener('pointercancel', handleEnd);
+    return () => {
+      window.removeEventListener('pointermove', handleMove);
+      window.removeEventListener('pointerup', handleEnd);
+      window.removeEventListener('pointercancel', handleEnd);
+    };
+  }, []);
+
   const handlePointerDown = (e, index) => {
     e.preventDefault();
     setDragIndex(index);
-    e.currentTarget.setPointerCapture(e.pointerId);
   };
-
-  const handlePointerMove = (e) => {
-    if (dragIndex === null) return;
-    const target = document.elementFromPoint(e.clientX, e.clientY);
-    const card = target && target.closest('[data-task-index]');
-    if (!card) return;
-    const overIndex = Number(card.dataset.taskIndex);
-    if (overIndex === dragIndex) return;
-    setTasks((prev) => {
-      const newTasks = [...prev];
-      const [moved] = newTasks.splice(dragIndex, 1);
-      newTasks.splice(overIndex, 0, moved);
-      return newTasks;
-    });
-    setDragIndex(overIndex);
-  };
-
-  const handlePointerEnd = () => setDragIndex(null);
 
   const catImg = (visual, baseSize) => (
     <img
@@ -230,9 +248,6 @@ function HouchiDaichou() {
                   </div>
                   <div
                     onPointerDown={(e) => handlePointerDown(e, i)}
-                    onPointerMove={handlePointerMove}
-                    onPointerUp={handlePointerEnd}
-                    onPointerCancel={handlePointerEnd}
                     style={{ color: '#C9BAB2', fontSize: 20, padding: '10px 8px', cursor: 'grab', touchAction: 'none' }}
                   >≡</div>
                 </div>
