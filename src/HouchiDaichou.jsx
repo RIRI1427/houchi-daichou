@@ -11,7 +11,6 @@ const POODLE_IMAGES = {
 const TASKS_KEY = 'houchi-daichou:tasks';
 const HISTORY_KEY = 'houchi-daichou:history';
 const COMPLETED_COUNT_KEY = 'houchi-daichou:completedCount';
-const CELEBRATED_5_KEY = 'houchi-daichou:celebrated5';
 const CELEBRATION_GOAL = 5;
 
 function loadFromStorage(key) {
@@ -33,14 +32,6 @@ function loadNumber(key) {
   }
 }
 
-function loadBool(key) {
-  try {
-    return localStorage.getItem(key) === '1';
-  } catch {
-    return false;
-  }
-}
-
 function HouchiDaichou() {
   const [tasks, setTasks] = useState(() => loadFromStorage(TASKS_KEY));
   const [history, setHistory] = useState(() => loadFromStorage(HISTORY_KEY));
@@ -52,7 +43,6 @@ function HouchiDaichou() {
   const [dragIndex, setDragIndex] = useState(null);
   const [dueInput, setDueInput] = useState('');
   const [completedCount, setCompletedCount] = useState(() => loadNumber(COMPLETED_COUNT_KEY));
-  const [hasCelebrated5, setHasCelebrated5] = useState(() => loadBool(CELEBRATED_5_KEY));
   const [now, setNow] = useState(() => new Date());
 
   useEffect(() => {
@@ -73,11 +63,6 @@ function HouchiDaichou() {
     } catch {}
   }, [completedCount]);
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(CELEBRATED_5_KEY, hasCelebrated5 ? '1' : '0');
-    } catch {}
-  }, [hasCelebrated5]);
 
   // 期限までのカウントダウンをリアルタイム表示するため、1秒ごとに現在時刻を更新。
   useEffect(() => {
@@ -229,10 +214,9 @@ function HouchiDaichou() {
     if (status === 'done') {
       const newCount = completedCount + 1;
       setCompletedCount(newCount);
-      if (newCount >= CELEBRATION_GOAL && !hasCelebrated5) {
-        setHasCelebrated5(true);
+      if (newCount % CELEBRATION_GOAL === 0) {
         launchCelebration();
-        showToast('🎉 累計5回達成！よく頑張ったね！');
+        showToast(`🎉 累計${newCount}回達成！よく頑張ったね！`);
         return;
       }
       showToast('おつかれさま！ひとつ減ったよ。');
