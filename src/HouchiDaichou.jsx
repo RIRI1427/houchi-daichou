@@ -10,6 +10,9 @@ const POODLE_IMAGES = {
 
 const TASKS_KEY = 'houchi-daichou:tasks';
 const HISTORY_KEY = 'houchi-daichou:history';
+const COMPLETED_COUNT_KEY = 'houchi-daichou:completedCount';
+const BADGE_5_KEY = 'houchi-daichou:badge5';
+const BADGE_GOAL = 5;
 
 function loadFromStorage(key) {
   try {
@@ -17,6 +20,24 @@ function loadFromStorage(key) {
     return raw ? JSON.parse(raw) : [];
   } catch {
     return [];
+  }
+}
+
+function loadNumber(key) {
+  try {
+    const raw = localStorage.getItem(key);
+    const n = raw ? Number(raw) : 0;
+    return Number.isFinite(n) ? n : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function loadBool(key) {
+  try {
+    return localStorage.getItem(key) === '1';
+  } catch {
+    return false;
   }
 }
 
@@ -29,6 +50,10 @@ function HouchiDaichou() {
   const [showTrashModal, setShowTrashModal] = useState(false);
   const [toast, setToast] = useState('');
   const [dragIndex, setDragIndex] = useState(null);
+  const [dueInput, setDueInput] = useState('');
+  const [completedCount, setCompletedCount] = useState(() => loadNumber(COMPLETED_COUNT_KEY));
+  const [badgeEarned, setBadgeEarned] = useState(() => loadBool(BADGE_5_KEY));
+  const [now, setNow] = useState(() => new Date());
 
   useEffect(() => {
     try {
@@ -42,6 +67,24 @@ function HouchiDaichou() {
     } catch {}
   }, [history]);
 
+  useEffect(() => {
+    try {
+      localStorage.setItem(COMPLETED_COUNT_KEY, String(completedCount));
+    } catch {}
+  }, [completedCount]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(BADGE_5_KEY, badgeEarned ? '1' : '0');
+    } catch {}
+  }, [badgeEarned]);
+
+  // 期限までのカウントダウンをリアルタイム表示するため、1秒ごとに現在時刻を更新。
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
   const showToast = (msg) => {
     setToast(msg);
     setTimeout(() => setToast(''), 1800);
@@ -49,8 +92,36 @@ function HouchiDaichou() {
 
   const daysSince = (dateStr) => {
     const created = new Date(dateStr);
-    const now = new Date();
-    return Math.max(0, Math.floor((now - created) / (1000 * 60 * 60 * 24)));
+    const nowDate = new Date();
+    return Math.max(0, Math.floor((nowDate - created) / (1000 * 60 * 60 * 24)));
+  };
+
+  // 期限までの残り時間をリアルタイム表示用に整形する。
+  const formatRemaining = (dueAt) => {
+    if (!dueAt) return null;
+    const diffMs = new Date(dueAt).getTime() - now.getTime();
+    if (diffMs <= 0) return { overdue: true, text: '期限切れ' };
+    const totalSec = Math.floor(diffMs / 1000);
+    const days = Math.floor(totalSec / 86400);
+    const hours = Math.floor((totalSec % 86400) / 3600);
+    const mins = Math.floor((totalSec % 3600) / 60);
+    const secs = totalSec % 60;
+    let text;
+    if (days > 0) text = `残り${days}日${hours}時間`;
+    else if (hours > 0) text = `残り${hours}時間${mins}分`;
+    else if (mins > 0) text = `残り${mins}分${secs}秒`;
+    else text = `残り${secs}秒`;
+    return { overdue: false, text };
+  };
+
+  const isOverdue = (dueAt) => !!dueAt && new Date(dueAt).getTime() <= now.getTime();
+
+  // <input type="datetime-local">の値 <-> ISO文字列 の変換。
+  const toDatetimeLocalValue = (iso) => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
   };
 
   // 5日ごとにレベルが上がり、サイズと色の濃さが段階的に変化する。
@@ -75,9 +146,11 @@ function HouchiDaichou() {
       id: 'task_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
       name,
       createdAt: new Date().toISOString(),
+      dueAt: dueInput ? new Date(dueInput).toISOString() : null,
     };
     setTasks([newTask, ...tasks]);
     setTaskInput('');
+    setDueInput('');
     setShowAddModal(false);
     showToast('とりあえず入れておこう。');
   };
@@ -86,12 +159,30 @@ function HouchiDaichou() {
     setActiveTask(task);
   };
 
+  const updateActiveTaskDue = (isoOrNull) => {
+    if (!activeTask) return;
+    const updated = { ...activeTask, dueAt: isoOrNull };
+    setActiveTask(updated);
+    setTasks(tasks.map(t => (t.id === activeTask.id ? updated : t)));
+  };
+
   const moveToHistory = (status) => {
     if (!activeTask) return;
     setTasks(tasks.filter(t => t.id !== activeTask.id));
     setHistory([{ ...activeTask, status, movedAt: new Date().toISOString() }, ...history]);
     setActiveTask(null);
-    showToast(status === 'done' ? 'おつかれさま！ひとつ減ったよ。' : 'ひとつ減ると、ちょっと嬉しい。');
+    if (status === 'done') {
+      const newCount = completedCount + 1;
+      setCompletedCount(newCount);
+      if (newCount >= BADGE_GOAL && !badgeEarned) {
+        setBadgeEarned(true);
+        showToast('🏅 累計5回達成！記念バッジをゲットしたよ！');
+        return;
+      }
+      showToast('おつかれさま！ひとつ減ったよ。');
+    } else {
+      showToast('ひとつ減ると、ちょっと嬉しい。');
+    }
   };
 
   const restoreFromHistory = (id) => {
@@ -156,12 +247,23 @@ function HouchiDaichou() {
     setDragIndex(index);
   };
 
-  const catImg = (visual, baseSize) => (
-    <img
-      src={POODLE_IMAGES['stage' + visual.stage]}
-      alt="プードル"
-      style={{ width: Math.round(baseSize * visual.sizeRatio), height: 'auto', display: 'block', filter: visual.filter }}
-    />
+  const catImg = (visual, baseSize, overdue) => (
+    <div style={{ position: 'relative', display: 'inline-block' }}>
+      <img
+        src={POODLE_IMAGES['stage' + visual.stage]}
+        alt="プードル"
+        style={{
+          width: Math.round(baseSize * visual.sizeRatio), height: 'auto', display: 'block', filter: visual.filter,
+          animation: overdue ? 'poodleFuss 1.6s ease-in-out infinite' : 'none',
+        }}
+      />
+      {overdue && (
+        <span style={{
+          position: 'absolute', top: -4, right: -6, fontSize: Math.max(14, baseSize * 0.34),
+          animation: 'poodleFussBubble 1.6s ease-in-out infinite',
+        }}>💦</span>
+      )}
+    </div>
   );
 
   const msgs = { 1: 'まだ大丈夫。', 2: 'そろそろ？', 3: '……いいかげんにして。' };
@@ -193,6 +295,14 @@ function HouchiDaichou() {
           <p style={{ margin: '6px 0 0', fontSize: 12, color: '#A89A94' }}>
             やることも、やらないことも、自分のペースで。
           </p>
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 10,
+            background: badgeEarned ? '#FFF1CC' : '#FFF2F5',
+            color: badgeEarned ? '#B8860B' : '#C77B8E',
+            borderRadius: 100, padding: '6px 14px', fontSize: 12, fontWeight: 700,
+          }}>
+            {badgeEarned ? <>🏅 5回達成バッジ獲得！</> : <>やった回数 {completedCount}/{BADGE_GOAL}</>}
+          </div>
         </div>
 
         {/* add button */}
@@ -225,6 +335,8 @@ function HouchiDaichou() {
               const days = daysSince(t.createdAt);
               const visual = poodleVisual(days);
               const dayColor = visual.stage === 1 ? '#D8A468' : visual.stage === 2 ? '#C98A0E' : '#B0479E';
+              const remaining = formatRemaining(t.dueAt);
+              const overdue = isOverdue(t.dueAt);
               return (
                 <div
                   key={t.id}
@@ -246,7 +358,7 @@ function HouchiDaichou() {
                     onClick={() => openDetail(t)}
                     style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}
                   >
-                    {catImg(visual, 42)}
+                    {catImg(visual, 42, overdue)}
                   </div>
                   <div
                     onClick={() => openDetail(t)}
@@ -259,6 +371,14 @@ function HouchiDaichou() {
                     <div style={{ fontSize: 13, fontWeight: 800, marginTop: 3, color: dayColor }}>
                       {days}日
                     </div>
+                    {remaining && (
+                      <div style={{
+                        fontSize: 11.5, fontWeight: 700, marginTop: 2,
+                        color: overdue ? '#E2705C' : '#7FA8C9',
+                      }}>
+                        {overdue ? 'もう…期限切れ' : remaining.text}
+                      </div>
+                    )}
                   </div>
                   <div
                     onPointerDown={(e) => handlePointerDown(e, i)}
@@ -307,6 +427,19 @@ function HouchiDaichou() {
                 }}
                 autoFocus
               />
+              <label style={{ display: 'block', fontSize: 12.5, color: '#A89A94', marginBottom: 6 }}>
+                期限(任意)
+              </label>
+              <input
+                type="datetime-local"
+                value={dueInput}
+                onChange={(e) => setDueInput(e.target.value)}
+                style={{
+                  width: '100%', padding: '12px 14px', borderRadius: 14, border: '1.5px solid #F0E4DC',
+                  background: '#fff', fontSize: 14, outline: 'none', marginBottom: 14, boxSizing: 'border-box',
+                  color: '#4A3F3F',
+                }}
+              />
               <button
                 onClick={addTask}
                 style={{
@@ -340,14 +473,47 @@ function HouchiDaichou() {
               {(() => {
                 const days = daysSince(activeTask.createdAt);
                 const visual = poodleVisual(days);
+                const remaining = formatRemaining(activeTask.dueAt);
+                const overdue = isOverdue(activeTask.dueAt);
                 return (
                   <>
                     <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 6 }}>
-                      {catImg(visual, 110)}
+                      {catImg(visual, 110, overdue)}
                     </div>
                     <p style={{ textAlign: 'center', fontSize: 18, fontWeight: 800, margin: '8px 0 2px' }}>{activeTask.name}</p>
                     <p style={{ textAlign: 'center', fontSize: 13, color: '#A89A94', margin: '0 0 4px' }}>放置 {days}日</p>
-                    <p style={{ textAlign: 'center', fontSize: 13, color: '#A89A94', margin: '0 0 18px' }}>{msgs[visual.stage]}</p>
+                    <p style={{ textAlign: 'center', fontSize: 13, color: '#A89A94', margin: '0 0 18px' }}>
+                      {overdue ? 'もう…、期限を過ぎちゃったよ。' : msgs[visual.stage]}
+                    </p>
+                    <div style={{ background: '#fff', border: '1px solid #F0E4DC', borderRadius: 14, padding: '12px 14px', marginBottom: 18 }}>
+                      <label style={{ display: 'block', fontSize: 12, color: '#A89A94', marginBottom: 6 }}>期限</label>
+                      <input
+                        type="datetime-local"
+                        value={toDatetimeLocalValue(activeTask.dueAt)}
+                        onChange={(e) => updateActiveTaskDue(e.target.value ? new Date(e.target.value).toISOString() : null)}
+                        style={{
+                          width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid #F0E4DC',
+                          background: '#fff', fontSize: 14, outline: 'none', boxSizing: 'border-box', color: '#4A3F3F',
+                        }}
+                      />
+                      {remaining && (
+                        <p style={{
+                          margin: '8px 0 0', fontSize: 13, fontWeight: 700, textAlign: 'center',
+                          color: overdue ? '#E2705C' : '#7FA8C9',
+                        }}>
+                          {overdue ? '💦 もう期限切れだよ…' : remaining.text}
+                        </p>
+                      )}
+                      {activeTask.dueAt && (
+                        <button
+                          onClick={() => updateActiveTaskDue(null)}
+                          style={{
+                            display: 'block', margin: '8px auto 0', background: 'none', border: 'none',
+                            color: '#B0479E', fontSize: 12, cursor: 'pointer', textDecoration: 'underline',
+                          }}
+                        >期限を削除</button>
+                      )}
+                    </div>
                   </>
                 );
               })()}
